@@ -15,6 +15,6 @@ class Flow:
         self.currBts = 0
     
     def isComplete(self):
-        if remainingBytes <= 0:
+        if self.remainingBytes <= 0:
             return True
         return False
