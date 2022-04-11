@@ -42,7 +42,7 @@ def sortJobs():
                 return -1
             return 1
         activeJobs.sort(key=cmp_to_key(compare))
-    elif schedAlgo == "SCFC":
+    elif schedAlgo == "SCF":
         def compare(j1, j2):
             if j1.maxShuffleBytes / len(j1.MapTask) == j2.maxShuffleBytes / len(j2.MapTask):
                 return 0
@@ -50,7 +50,7 @@ def sortJobs():
                 return -1
             return 1
         activeJobs.sort(key=cmp_to_key(compare))
-    elif schedAlgo == "NCFC":
+    elif schedAlgo == "NCF":
         def compare(j1, j2):
             n1 = min(len(j1.MapTask), len(j1.ReduceTask))
             n2 = min(len(j2.MapTask), len(j2.ReduceTask))
