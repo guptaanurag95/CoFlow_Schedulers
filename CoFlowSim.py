@@ -34,9 +34,7 @@ def init():
 def sortJobs():
     global schedAlgo, activeJobs
 
-    if schedAlgo == "FIFO":
-        return
-    elif schedAlgo == "SEBF":
+    if schedAlgo == "SEBF":
         def compare(j1, j2):
             if j1.alpha == j2.alpha:
                 return 0
@@ -58,6 +56,9 @@ def sortJobs():
             n2 = min(len(j2.MapTask), len(j2.ReduceTask))
             return n1-n2
         activeJobs.sort(key=cmp_to_key(compare))
+    else:
+        print("Inalid Scheduling Algo")
+        exit()
         
     
 def calcAlpha(currJ):
@@ -67,13 +68,12 @@ def calcAlpha(currJ):
     recvBytes = [0 for i in range(NUMBER_MACHINE)]
 
     for r in currJ.ReduceTask:
-        recvBytes[r.MachineId] = r.BytesLeft
+        recvBytes[r.MachineId] += r.BytesLeft
         for f in r.flows:
             sendBytes[f.mapper.MachineId] += f.remainingBytes
     
     for i in range(NUMBER_MACHINE):
         if (sendBytes[i] > 0 and sendBpsFree[i] <= 0) or (recvBytes[i] > 0 and recvBpsFree[i] <= 0):
-            # print(sendBytes[i], sendBpsFree[i], recvBytes[i], recvBpsFree[i])
             return -1
         
         if sendBytes[i]!=0:
@@ -82,25 +82,6 @@ def calcAlpha(currJ):
             recvBytes[i] = recvBytes[i] * 8 / recvBpsFree[i]
     return max(max(sendBytes), max(recvBytes))
 
-def updateRates(currJ, currAlpha, sendUsed, recvUsed):
-    global recvBpsFree, sendBpsFree
-
-    for r in currJ.ReduceTask:
-        if recvBpsFree[r.MachineId] <= 0:
-            continue
-        
-        for f in r.flows:
-            src = f.mapper.MachineId
-            
-            currBps = f.remainingBytes * 8 / currAlpha
-            if currBps > sendBpsFree[src] or currBps > recvBpsFree[r.MachineId]:
-                currBps = min(sendBpsFree[src], recvBpsFree[r.MachineId])
-            
-            sendUsed[src] += currBps
-            recvUsed[r.MachineId] += currBps
-
-            f.currBts = currBps
-
 def allocateBW():
     global activeJobs, sendBpsFree, recvBpsFree, skippedJob
 
@@ -108,7 +89,6 @@ def allocateBW():
     skippedJobs = []
 
     for j in activeJobs:
-        # print(j.ID)
         for r in j.ReduceTask:
             for f in r.flows:
                 f.currBts = 0
@@ -117,12 +97,31 @@ def allocateBW():
         recvUsed = [0 for i in range(NUMBER_MACHINE)]
 
         currAlpha = calcAlpha(j)
-        # print(currAlpha)
-        j.alpha = currAlpha
         if currAlpha == -1:
             skippedJob.append(j)
             continue
-        updateRates(j, currAlpha, sendUsed, recvUsed)
+        
+        def updateRates(currJ, currAlpha):
+            global recvBpsFree, sendBpsFree
+            nonlocal sendUsed, recvUsed
+
+            for r in currJ.ReduceTask:
+                if recvBpsFree[r.MachineId] <= 0:
+                    continue
+                
+                for f in r.flows:
+                    src = f.mapper.MachineId
+                    
+                    currBps = f.remainingBytes * 8 / currAlpha
+                    if currBps > sendBpsFree[src] or currBps > recvBpsFree[r.MachineId]:
+                        currBps = min(sendBpsFree[src], recvBpsFree[r.MachineId])
+                    
+                    sendUsed[src] += currBps
+                    recvUsed[r.MachineId] += currBps
+
+                    f.currBts = currBps
+        
+        updateRates(j, currAlpha)
 
         for i in range(NUMBER_MACHINE):
             sendBpsFree[i] -= sendUsed[i]
@@ -134,16 +133,12 @@ def transferBytes():
     arr = []
     for j in activeJobs:
         allFinished = True
-        # print(j.ID)
         for r in j.ReduceTask:
-            # print(r.BytesLeft)
             for f in r.flows:
-                # print(f.currBts)
-                bytesMove = (f.currBts / 8) * (timeStep / 1000.0)
+                bytesMove = (f.currBts / 8) * ((timeStep/int(((1  * 1024 * 1024)/8.0)/1024)) / 1000.0)
                 bytesMove = min(bytesMove, f.remainingBytes)
                 
                 f.remainingBytes -= bytesMove
-                # f.remainingBytes = int(f.remainingBytes)
                 if f.remainingBytes <= 0:
                     sendBpsFree[f.mapper.MachineId] += f.currBts
                     recvBpsFree[r.MachineId] += f.currBts
@@ -152,8 +147,6 @@ def transferBytes():
                 r.BytesLeft -= bytesMove
                 if r.BytesLeft < 0:
                     r.BytesLeft = 0
-                # r.BytesLeft = int(r.BytesLeft)
-            # if (r.BytesLeft) > 0:
             if not r.isComplete():
                 allFinished = False
         if not allFinished:
@@ -178,9 +171,6 @@ schedAlgo = sys.argv[2]
 
 readFile(inputF)
 init()
-# CoFlowList = CoFlowList[:100]
-# CoFlowList[0].printJ()
-# CoFlowList[1].printJ()
 
 for c in CoFlowList:
     c.createFlows()
@@ -191,27 +181,18 @@ skippedJob = []
 currIndex = 0
 
 while numJobsComplete < len(CoFlowList):
-    # if currTime >= 1000000:
-    #     break
-    # if not currTime%100:
-        # print(currTime, numJobsComplete, len(activeJobs))
-        # for j in activeJobs:
-            # j.printD()
-            # j.printJ()
-    #         print(j.isComplete(currTime))
-
     # add new jobs to active list
 
     numNewJob = 0
     while currIndex < len(CoFlowList):
         if CoFlowList[currIndex].ArrivalTime > currTime:
             break
+
+        CoFlowList[currIndex].SimulationStartTime = currTime
         activeJobs.append(CoFlowList[currIndex])
-        activeJobs[-1].SimulationStartTime = currTime
         numNewJob += 1
         currIndex += 1
     
-    # print(activeJobs)
     # sort them according to algo
     sortJobs()
 
@@ -225,27 +206,14 @@ while numJobsComplete < len(CoFlowList):
     if numActiveJobs > len(activeJobs):
         numJobsComplete += numActiveJobs - len(activeJobs)
         allocateBW()
-
-    # check if any active job in complete
-    # currA = []
-    # for j in activeJobs:
-    #     if j.isComplete(currTime):
-    #         numJobsComplete += 1
-    #     else:
-    #         currA.append(j)
-    # activeJobs = [x for x in currA]
     
     currTime += timeStep
-
-# for i in range(5):
-#     CoFlowList[i].printJ()
 
 totalSimTime = 0
 count = 0
 for c in CoFlowList:
-    # print(c.ID, c.SimulationStartTime, c.SimulationEndTime)
     if c.SimulationEndTime > 0:
         totalSimTime += c.SimulationEndTime - c.SimulationStartTime
         count += 1
 
-print(totalSimTime/count)
+print(schedAlgo, "- Average CCT:", totalSimTime/count)

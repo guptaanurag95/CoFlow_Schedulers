@@ -17,8 +17,8 @@ class Job:
     def __init__(self, line, numM):
         arr = line.split(" ")
         self.ID = int(arr[0])
-        # self.ArrivalTime = int(arr[1])%5
-        self.ArrivalTime = int(random.random()*10)
+        self.ArrivalTime = int(arr[1])
+        # self.ArrivalTime = int(random.random()*10)
 
         nM = int(arr[2])
         self.MapTask = []
@@ -66,3 +66,10 @@ class Job:
     def printD(self):
         for r in self.ReduceTask:
             r.printD()
+    
+    def BytesRemain(self):
+        count = 0
+        for r in self.ReduceTask:
+            for f in r.flows:
+                count += f.remainingBytes
+        return count
