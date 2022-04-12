@@ -19,6 +19,15 @@ python3 CoFlowSim.py <inputFile> <Algo>
 
 The program will output the average CCT.
 
+## Trace File
+
+Trace file is taken from the Coflow-Benchmark, which is also used in the paper. Arrival times of the jobs are modified to reduce simulation time. The format of the trace file is as bellow.
+
+```
+Line 1: <Number of ports in the fabric> <Number of coflows below (one per line)>
+Line i: <Coflow ID> <Arrival time (ms)> <Number of mappers> <Location of map-m> <Number of reducers> <Location of reduce-r:Shuffle megabytes of reduce-r>
+```
+
 ## Reference
 
 1. https://www.mosharaf.com/wp-content/uploads/varys-sigcomm14.pdf
